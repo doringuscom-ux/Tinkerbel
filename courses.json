@@ -1,0 +1,98 @@
+[
+  {
+    "name": "Basic Digital Marketing",
+    "duration": "2 Months",
+    "original_fee": 30000,
+    "discounted_fee": 25000,
+    "ideal_for": "Beginners & Students",
+    "syllabus": [
+      "Social Media Marketing",
+      "Google & Meta Ads Basics",
+      "SEO Fundamentals",
+      "Content Strategy",
+      "Reporting & Analytics"
+    ],
+    "includes": []
+  },
+  {
+    "name": "Advanced Digital Marketing",
+    "duration": "3 Months",
+    "original_fee": 50000,
+    "discounted_fee": 45000,
+    "ideal_for": "Intermediate learners aiming for job-ready skills",
+    "syllabus": [
+      "SEO",
+      "Google Ads",
+      "Meta Ads",
+      "Performance Marketing",
+      "Website Audit"
+    ],
+    "includes": ["Internship + Placement Assistance"]
+  },
+  {
+    "name": "Digital Marketing with AI",
+    "duration": "3.5 - 4 Months",
+    "original_fee": 60000,
+    "discounted_fee": 55000,
+    "ideal_for": "Marketers, Freelancers & Career Professionals",
+    "syllabus": [
+      "Advanced Digital Marketing",
+      "ChatGPT",
+      "Gemini",
+      "Canva AI",
+      "Copy.ai",
+      "AI Marketing Automation",
+      "Smart Campaign Planning"
+    ],
+    "includes": ["Internship + Placement Assistance"]
+  },
+  {
+    "name": "Graphic Designing",
+    "duration": "3 - 4 Months",
+    "original_fee": 60000,
+    "discounted_fee": 55000,
+    "ideal_for": "Creative Individuals, Students, Freelancers, Business Owners",
+    "syllabus": [
+      "Photoshop",
+      "Illustrator",
+      "Canva Pro",
+      "Branding & Logo Design",
+      "Social Media Creatives",
+      "Portfolio Development"
+    ],
+    "includes": ["Internship + Placement Assistance"]
+  },
+  {
+    "name": "Video Editing",
+    "duration": "3 - 4 Months",
+    "original_fee": 60000,
+    "discounted_fee": 55000,
+    "ideal_for": "Aspiring Editors, Content Creators, Filmmakers, YouTubers",
+    "syllabus": [
+      "Premiere Pro",
+      "After Effects",
+      "CapCut",
+      "Reels & Shorts Editing",
+      "Color Grading",
+      "Sound Design"
+    ],
+    "includes": ["Internship + Placement Assistance"]
+  },
+  {
+    "name": "Full Stack Web Development",
+    "duration": "3 - 4 Months",
+    "original_fee": 60000,
+    "discounted_fee": 55000,
+    "ideal_for": "Beginners to Intermediate Developers, Freelancers, Job Seekers",
+    "syllabus": [
+      "HTML, CSS, JavaScript",
+      "React.js Basics",
+      "Node.js",
+      "MySQL",
+      "APIs",
+      "Responsive Website Design",
+      "Real-World Projects"
+    ],
+    "includes": ["Internship + Placement Assistance"]
+  }
+]
