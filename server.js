@@ -133,10 +133,12 @@ app.get('/webhook', (req, res) => {
 
 /**
  * AUTHENTICATION MIDDLEWARE
- * (Disabled because old frontend doesn't support it)
+ * Secures all /api/* routes except webhook
  */
-/*
 app.use('/api', async (req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
   try {
     await connectDB();
     const providedPassword = req.headers['x-api-password'];
@@ -160,13 +162,10 @@ app.use('/api', async (req, res, next) => {
     res.status(500).json({ error: 'Server Error in Auth Middleware' });
   }
 });
-*/
 
 /**
  * CHANGE PASSWORD ENDPOINT
- * (Disabled because old frontend doesn't support it)
  */
-/*
 app.post('/api/change-password', async (req, res) => {
   try {
     const { newPassword } = req.body;
@@ -186,7 +185,6 @@ app.post('/api/change-password', async (req, res) => {
     res.status(500).json({ error: 'Failed to update password' });
   }
 });
-*/
 
 /**
  * WEBHOOK MESSAGE HANDLER (POST /webhook)
