@@ -508,9 +508,9 @@ app.post('/api/toggle-ai', async (req, res) => {
 });
 
 /**
- * API ENDPOINT TO SEND MESSAGES (POST /send-message)
+ * API ENDPOINT TO SEND MESSAGES
  */
-app.post('/send-message', async (req, res) => {
+app.post(['/send-message', '/api/chats/:phone/reply'], async (req, res) => {
   const { to, message } = req.body;
 
   if (!to || !message) {
