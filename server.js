@@ -248,9 +248,9 @@ app.post('/webhook', async (req, res) => {
               if (['menu', 'language', 'change language', 'bhasha', 'options'].includes(lowerText)) {
                 console.log(`User ${from} requested menu/language change.`);
                 try {
-                  await sendWelcomeMenu(from);
+                  await sendLanguageMenu(from);
                 } catch (err) {
-                  console.error('Error sending welcome menu:', err.message);
+                  console.error('Error sending language menu:', err.message);
                 }
                 return res.status(200).send('EVENT_RECEIVED');
               }
@@ -261,8 +261,28 @@ app.post('/webhook', async (req, res) => {
               if (interactiveId.startsWith('lang_')) {
                 const selectedLanguage = interactiveId.split('_')[1];
                 session.language = selectedLanguage;
+                
+                session.history.push({ role: 'user', content: textBody, timestamp: new Date().toISOString() });
+                session.unreadCount = (session.unreadCount || 0) + 1;
+                session.markModified('history');
                 await session.save();
                 console.log(`User ${from} selected language: ${selectedLanguage}`);
+                
+                // Immediately send Inquiry menu
+                try {
+                  await sendInquiryMenu(from);
+                  session.history.push({
+                    role: 'assistant',
+                    content: "[Interactive Menu Sent: Inquiry Options]",
+                    timestamp: new Date().toISOString(),
+                    status: 'sent'
+                  });
+                  session.markModified('history');
+                  await session.save();
+                } catch (err) {
+                  console.error('Error sending inquiry menu:', err.message);
+                }
+                return res.status(200).send('EVENT_RECEIVED'); // Stop here so AI doesn't reply to language selection
               } else if (interactiveId.startsWith('opt_')) {
                 if (!session.language) session.language = 'English'; // fallback flag
                 await session.save();
@@ -295,20 +315,19 @@ app.post('/webhook', async (req, res) => {
 
             // --- WELCOME MENU INTERCEPT ---
             if (!session.language || session.history.length === 2) {
-              console.log(`User ${from} has not seen welcome menu. Sending welcome menu.`);
+              console.log(`User ${from} has not seen welcome menu. Sending language menu.`);
               try {
-                await sendWelcomeMenu(from);
-                session.language = 'english'; // Set fallback language
+                await sendLanguageMenu(from);
                 session.history.push({
                   role: 'assistant',
-                  content: "[Interactive Menu Sent: Welcome to The Bharat School]",
+                  content: "[Interactive Menu Sent: Select Language]",
                   timestamp: new Date().toISOString(),
                   status: 'sent'
                 });
                 session.markModified('history');
                 await session.save();
               } catch (err) {
-                console.error('Error sending welcome menu:', err.message);
+                console.error('Error sending language menu:', err.message);
               }
               return res.status(200).send('EVENT_RECEIVED'); // Wait for next user message
             }
@@ -675,7 +694,7 @@ async function sendWhatsAppTextMessage(to, text) {
 /**
  * Helper function to send Welcome Selection Interactive Menu
  */
-async function sendWelcomeMenu(to) {
+async function sendLanguageMenu(to) {
   const url = `https://graph.facebook.com/${META_API_VERSION}/${PHONE_NUMBER_ID}/messages`;
 
   const payload = {
@@ -686,20 +705,50 @@ async function sendWelcomeMenu(to) {
     interactive: {
       type: 'list',
       header: { type: 'text', text: 'Welcome to The Bharat School!' },
-      body: { text: '🎓 Thank you for reaching out to us. We are delighted to connect with you.\n\nTo help us assist you better, please select one of the following options:\n\n(Also, please reply to let us know which language you prefer to converse in!)' },
+      body: { text: '🎓 Thank you for reaching out to us. We are delighted to connect with you.\n\nFirst, please select your preferred language / कृपया अपनी भाषा चुनें:' },
       footer: { text: 'The Bharat School' },
       action: {
-        button: 'Select Option',
+        button: 'Select Language',
         sections: [
           {
-            title: 'Select Language',
+            title: 'Languages',
             rows: [
               { id: 'lang_English', title: 'English', description: 'Chat in English' },
               { id: 'lang_Hindi', title: 'Hindi', description: 'हिंदी में बात करें' },
               { id: 'lang_Hinglish', title: 'Hinglish', description: 'Chat in Hinglish' },
               { id: 'lang_Punjabi', title: 'Punjabi', description: 'ਪੰਜਾਬੀ ਵਿੱਚ ਗੱਲ ਕਰੋ' }
             ]
-          },
+          }
+        ]
+      }
+    }
+  };
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${WHATSAPP_TOKEN}`
+  };
+
+  const response = await axios.post(url, payload, { headers });
+  return response.data;
+}
+
+async function sendInquiryMenu(to) {
+  const url = `https://graph.facebook.com/${META_API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: to,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      header: { type: 'text', text: 'How can we help?' },
+      body: { text: 'Great! Now please select what you would like to know more about:' },
+      footer: { text: 'The Bharat School' },
+      action: {
+        button: 'Select Option',
+        sections: [
           {
             title: 'Options',
             rows: [
