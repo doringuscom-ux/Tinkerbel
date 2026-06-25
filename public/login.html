@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Login - Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: var(--bg-dark);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .login-container {
+      background: var(--bg-panel);
+      padding: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+    .login-container h1 {
+      color: #fff;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    .login-container p {
+      color: var(--text-secondary);
+      margin-bottom: 30px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .form-group label {
+      display: block;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      background: rgba(0,0,0,0.2);
+      color: #fff;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent-blue);
+      color: #0d1117;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-login:hover {
+      background: #8bceff;
+      transform: translateY(-2px);
+    }
+    #errorMsg {
+      color: #e74c3c;
+      margin-top: 15px;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-container">
+    <h1>Admin Login</h1>
+    <p>Please enter your API password to continue.</p>
+    
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" required placeholder="Enter password...">
+      </div>
+      <button type="submit" class="btn-login" id="loginBtn">Log In</button>
+      <div id="errorMsg">Incorrect password or server error.</div>
+    </form>
+  </div>
+
+  <script src="login.js"></script>
+</body>
+</html>

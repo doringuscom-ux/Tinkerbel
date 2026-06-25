@@ -1,4 +1,19 @@
 // Global UI State
+const apiPassword = localStorage.getItem('api_password');
+if (!apiPassword) {
+  window.location.href = '/login.html';
+}
+
+async function apiFetch(url, options = {}) {
+  const headers = { ...options.headers, 'x-api-password': apiPassword };
+  const response = await fetch(url, { ...options, headers });
+  if (response.status === 401) {
+    localStorage.removeItem('api_password');
+    window.location.href = '/login.html';
+  }
+  return response;
+}
+
 let activePhone = null;
 let sessionsData = [];
 let pollingInterval = null;
@@ -24,6 +39,7 @@ const selectionActionBar = document.getElementById('selectionActionBar');
 const selectionCount = document.getElementById('selectionCount');
 const btnCancelSelection = document.getElementById('btnCancelSelection');
 const btnDeleteSelected = document.getElementById('btnDeleteSelected');
+const btnLogout = document.getElementById('btnLogout');
 
 // Initialize Dashboard
 document.addEventListener('DOMContentLoaded', () => {
@@ -58,12 +74,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Message Form Submit
   messageForm.addEventListener('submit', handleSendMessage);
+
+  // Logout Button
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      localStorage.removeItem('api_password');
+      window.location.href = '/login.html';
+    });
+  }
 });
 
 // Fetch all active sessions
 async function fetchSessions() {
   try {
-    const response = await fetch('/api/sessions');
+    const response = await apiFetch('/api/sessions');
     if (!response.ok) throw new Error('Failed to fetch sessions');
     sessionsData = await response.json();
     renderSessions();
@@ -141,7 +165,7 @@ async function selectChat(phone) {
 // Fetch chat history for selected phone
 async function fetchChatHistory(phone) {
   try {
-    const response = await fetch(`/api/chats/${phone}`);
+    const response = await apiFetch(`/api/chats/${phone}`);
     if (!response.ok) throw new Error('Failed to load chat history');
     const data = await response.json();
     renderMessages(data.history);
@@ -294,7 +318,7 @@ function startCountdown(pausedUntilTime) {
 async function pauseAI(minutes) {
   if (!activePhone) return;
   try {
-    const response = await fetch('/api/pause', {
+    const response = await apiFetch('/api/pause', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: activePhone, durationMinutes: minutes })
@@ -314,7 +338,7 @@ async function deleteChat() {
   if (!confirmDelete) return;
 
   try {
-    const response = await fetch(`/api/chats/${activePhone}`, {
+    const response = await apiFetch(`/api/chats/${activePhone}`, {
       method: 'DELETE'
     });
     if (response.ok) {
@@ -339,7 +363,7 @@ async function deleteSingleMessage(index) {
   if (!confirmDelete) return;
 
   try {
-    const response = await fetch(`/api/chats/${activePhone}/messages/${index}`, {
+    const response = await apiFetch(`/api/chats/${activePhone}/messages/${index}`, {
       method: 'DELETE'
     });
     if (response.ok) {
@@ -386,7 +410,7 @@ async function bulkDeleteSelectedMessages() {
   const indicesArray = Array.from(selectedMessages);
   
   try {
-    const response = await fetch(`/api/chats/${activePhone}/messages/bulk-delete`, {
+    const response = await apiFetch(`/api/chats/${activePhone}/messages/bulk-delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ indices: indicesArray })
@@ -407,7 +431,7 @@ async function bulkDeleteSelectedMessages() {
 async function resumeAI() {
   if (!activePhone) return;
   try {
-    const response = await fetch('/api/resume', {
+    const response = await apiFetch('/api/resume', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: activePhone })
@@ -424,7 +448,7 @@ async function resumeAI() {
 async function toggleAI(enabled) {
   if (!activePhone) return;
   try {
-    const response = await fetch('/api/toggle-ai', {
+    const response = await apiFetch('/api/toggle-ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: activePhone, aiEnabled: enabled })
@@ -462,7 +486,7 @@ async function handleSendMessage(e) {
   messageInput.value = '';
 
   try {
-    const response = await fetch('/send-message', {
+    const response = await apiFetch('/send-message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: activePhone, message: message })
