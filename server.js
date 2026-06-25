@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
@@ -35,7 +34,8 @@ const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const BUSINESS_ACCOUNT_ID = process.env.BUSINESS_ACCOUNT_ID;
 const META_API_VERSION = process.env.META_API_VERSION || 'v25.0';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free';
 const MONGODB_URI = process.env.MONGODB_URI;
 
 let isConnected;
@@ -100,10 +100,10 @@ Answer: Yes, we provide guidance and support for various competitive and scholar
 If a user asks for something not in the FAQ, ask them to call 098761 55746 or visit https://thebharatschool.com/.
 `;
 
-if (GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here') {
-  console.log(`Initializing Gemini AI engine with model: gemini-1.5-flash`);
+if (OPENROUTER_API_KEY && OPENROUTER_API_KEY !== 'your_openrouter_api_key_here') {
+  console.log(`Initializing OpenRouter AI engine with model: ${OPENROUTER_MODEL}`);
 } else {
-  console.warn('\n⚠️ WARNING: GEMINI_API_KEY is not set in .env. The chatbot will use fallback messages instead of AI replies.\n');
+  console.warn('\n⚠️ WARNING: OPENROUTER_API_KEY is not set in .env. The chatbot will use fallback messages instead of AI replies.\n');
 }
 
 // Serve static frontend files
@@ -243,10 +243,17 @@ app.post('/webhook', async (req, res) => {
             }
 
             // Handle Welcome Menu Reply
-            if (messageType === 'interactive' && interactiveId && interactiveId.startsWith('opt_')) {
-              session.language = 'english'; // Treat 'language' as a flag that they've seen the welcome menu
-              await session.save();
-              console.log(`User ${from} selected option: ${textBody}`);
+            if (messageType === 'interactive' && interactiveId) {
+              if (interactiveId.startsWith('lang_')) {
+                const selectedLanguage = interactiveId.split('_')[1];
+                session.language = selectedLanguage;
+                await session.save();
+                console.log(`User ${from} selected language: ${selectedLanguage}`);
+              } else if (interactiveId.startsWith('opt_')) {
+                if (!session.language) session.language = 'English'; // fallback flag
+                await session.save();
+                console.log(`User ${from} selected option: ${textBody}`);
+              }
             }
 
             session.history.push({ role: 'user', content: textBody, timestamp: new Date().toISOString() });
@@ -292,7 +299,7 @@ app.post('/webhook', async (req, res) => {
             const isPaused = session.pausedUntil && session.pausedUntil > new Date();
 
             if (isAIEnabled && !isPaused) {
-              console.log('Generating automated response using Gemini AI...');
+              console.log('Generating automated response using OpenRouter AI...');
               try {
                 const aiReply = await generateAISessionReply(from, textBody);
                 console.log(`Generated Response: "${aiReply}"`);
@@ -599,6 +606,15 @@ async function sendWelcomeMenu(to) {
         button: 'Select Option',
         sections: [
           {
+            title: 'Select Language',
+            rows: [
+              { id: 'lang_English', title: 'English', description: 'Chat in English' },
+              { id: 'lang_Hindi', title: 'Hindi', description: 'हिंदी में बात करें' },
+              { id: 'lang_Hinglish', title: 'Hinglish', description: 'Chat in Hinglish' },
+              { id: 'lang_Punjabi', title: 'Punjabi', description: 'ਪੰਜਾਬੀ ਵਿੱਚ ਗੱਲ ਕਰੋ' }
+            ]
+          },
+          {
             title: 'Options',
             rows: [
               { id: 'opt_admission', title: 'Admission Inquiry', description: 'Looking to enroll your child' },
@@ -624,8 +640,8 @@ async function sendWelcomeMenu(to) {
  * Helper function to generate response using Gemini AI with session memory
  */
 async function generateAISessionReply(userId, userMessage) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') {
-    console.log('Gemini API key not configured. Using fallback response.');
+  if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY === 'your_openrouter_api_key_here') {
+    console.log('OpenRouter key not configured. Using fallback response.');
     return "Thank you for contacting The Bharat School. Our AI Assistant is undergoing setup. Please leave your requirement details and a team member will reach out to you shortly!";
   }
 
@@ -652,47 +668,42 @@ async function generateAISessionReply(userId, userMessage) {
 
   // Inject language preference if set
   if (session.language) {
-    history[0].content += `\n\nCRITICAL INSTRUCTION: You must reply in English. Do not use any other language.`;
+    // We append it to the main system instruction
+    history[0] = {
+      role: 'system',
+      content: history[0].content + `\n\nCRITICAL INSTRUCTION: You must reply in the user's preferred language, which is: ${session.language}. Do not use any other language.`
+    };
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      systemInstruction: history[0].content
-    });
+    const url = 'https://openrouter.ai/api/v1/chat/completions';
+    const payload = {
+      model: OPENROUTER_MODEL,
+      messages: history
+    };
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'HTTP-Referer': 'https://thebharatschool.com',
+      'X-Title': 'The Bharat School WhatsApp Bot'
+    };
 
-    // Convert history for Gemini
-    const geminiHistory = [];
-    const rawHistory = history.slice(1);
-    
-    for (const msg of rawHistory) {
-      const role = msg.role === 'assistant' ? 'model' : 'user';
-      const text = msg.content || ' ';
+    const response = await axios.post(url, payload, { headers, timeout: 8000 });
 
-      if (geminiHistory.length > 0 && geminiHistory[geminiHistory.length - 1].role === role) {
-        // Merge consecutive messages of the same role
-        geminiHistory[geminiHistory.length - 1].parts[0].text += `\n\n${text}`;
-      } else {
-        geminiHistory.push({ role, parts: [{ text }] });
-      }
+    if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
+      const aiReply = response.data.choices[0].message.content.trim();
+
+      session.history.push({ role: 'assistant', content: aiReply, timestamp: new Date().toISOString() });
+      session.markModified('history');
+      await session.save();
+
+      return aiReply;
+    } else {
+      console.error('Unexpected OpenRouter response structure:', JSON.stringify(response.data));
+      return "Thank you for your message. We will get back to you shortly!";
     }
-
-    // Gemini history MUST start with 'user'
-    if (geminiHistory.length > 0 && geminiHistory[0].role !== 'user') {
-      geminiHistory.shift();
-    }
-
-    const result = await model.generateContent({ contents: geminiHistory });
-    const aiReply = result.response.text().trim();
-
-    session.history.push({ role: 'assistant', content: aiReply, timestamp: new Date().toISOString() });
-    session.markModified('history');
-    await session.save();
-
-    return aiReply;
   } catch (error) {
-    console.error(`Error calling Gemini API for session ${userId}:`, error.message);
+    console.error(`Error calling OpenRouter API for session ${userId}:`, error.response ? error.response.data : error.message);
     return "Thank you for your message! Our AI is taking a moment to process. Please leave your requirement details and a team member will reach out to you shortly.";
   }
 }
