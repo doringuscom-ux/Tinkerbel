@@ -294,13 +294,18 @@ app.post('/webhook', async (req, res) => {
             }
 
             // --- WELCOME MENU INTERCEPT ---
-            if (!session.language) {
+            if (!session.language || session.history.length === 2) {
               console.log(`User ${from} has not seen welcome menu. Sending welcome menu.`);
               try {
                 await sendWelcomeMenu(from);
-                // Mark that we've sent it so we don't loop if they just send text again,
-                // but wait, we want them to click an option ideally. Let's just set the language.
-                session.language = 'english';
+                session.language = 'english'; // Set fallback language
+                session.history.push({
+                  role: 'assistant',
+                  content: "[Interactive Menu Sent: Welcome to The Bharat School]",
+                  timestamp: new Date().toISOString(),
+                  status: 'sent'
+                });
+                session.markModified('history');
                 await session.save();
               } catch (err) {
                 console.error('Error sending welcome menu:', err.message);
