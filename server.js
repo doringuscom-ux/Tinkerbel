@@ -760,7 +760,10 @@ async function generateAISessionReply(userId, userMessage) {
     const url = 'https://openrouter.ai/api/v1/chat/completions';
     const payload = {
       model: OPENROUTER_MODEL,
-      messages: history
+      messages: history.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
     };
     const headers = {
       'Content-Type': 'application/json',
