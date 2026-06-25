@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
@@ -34,8 +35,7 @@ const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const BUSINESS_ACCOUNT_ID = process.env.BUSINESS_ACCOUNT_ID;
 const META_API_VERSION = process.env.META_API_VERSION || 'v25.0';
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 let isConnected;
@@ -621,11 +621,11 @@ async function sendWelcomeMenu(to) {
 }
 
 /**
- * Helper function to generate response using OpenRouter AI with session memory
+ * Helper function to generate response using Gemini AI with session memory
  */
 async function generateAISessionReply(userId, userMessage) {
-  if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY === 'your_openrouter_api_key_here') {
-    console.log('OpenRouter key not configured. Using fallback response.');
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') {
+    console.log('Gemini API key not configured. Using fallback response.');
     return "Thank you for contacting The Bharat School. Our AI Assistant is undergoing setup. Please leave your requirement details and a team member will reach out to you shortly!";
   }
 
@@ -652,43 +652,33 @@ async function generateAISessionReply(userId, userMessage) {
 
   // Inject language preference if set
   if (session.language) {
-    // We append it to the main system instruction
-    history[0] = {
-      role: 'system',
-      content: history[0].content + `\n\nCRITICAL INSTRUCTION: You must reply in English. Do not use any other language.`
-    };
+    history[0].content += `\n\nCRITICAL INSTRUCTION: You must reply in English. Do not use any other language.`;
   }
 
   try {
-    const url = 'https://openrouter.ai/api/v1/chat/completions';
-    const payload = {
-      model: OPENROUTER_MODEL,
-      messages: history
-    };
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'HTTP-Referer': 'https://thebharatschool.com',
-      'X-Title': 'The Bharat School WhatsApp Bot'
-    };
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: history[0].content
+    });
 
-    const response = await axios.post(url, payload, { headers, timeout: 8000 });
+    // Convert history for Gemini
+    const geminiHistory = history.slice(1).map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
 
-    if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
-      const aiReply = response.data.choices[0].message.content.trim();
+    const result = await model.generateContent({ contents: geminiHistory });
+    const aiReply = result.response.text().trim();
 
-      session.history.push({ role: 'assistant', content: aiReply, timestamp: new Date().toISOString() });
-      session.markModified('history');
-      await session.save();
+    session.history.push({ role: 'assistant', content: aiReply, timestamp: new Date().toISOString() });
+    session.markModified('history');
+    await session.save();
 
-      return aiReply;
-    } else {
-      console.error('Unexpected OpenRouter response structure:', JSON.stringify(response.data));
-      return "Thank you for your message. We will get back to you shortly!";
-    }
+    return aiReply;
   } catch (error) {
-    console.error(`Error calling OpenRouter API for session ${userId}:`, error.response ? error.response.data : error.message);
-    return "Thank you for your message. We will get back to you shortly!";
+    console.error(`Error calling Gemini API for session ${userId}:`, error.message);
+    return "Thank you for your message! Our AI is taking a moment to process. Please leave your requirement details and a team member will reach out to you shortly.";
   }
 }
 
