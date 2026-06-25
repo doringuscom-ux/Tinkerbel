@@ -663,10 +663,25 @@ async function generateAISessionReply(userId, userMessage) {
     });
 
     // Convert history for Gemini
-    const geminiHistory = history.slice(1).map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    }));
+    const geminiHistory = [];
+    const rawHistory = history.slice(1);
+    
+    for (const msg of rawHistory) {
+      const role = msg.role === 'assistant' ? 'model' : 'user';
+      const text = msg.content || ' ';
+
+      if (geminiHistory.length > 0 && geminiHistory[geminiHistory.length - 1].role === role) {
+        // Merge consecutive messages of the same role
+        geminiHistory[geminiHistory.length - 1].parts[0].text += `\n\n${text}`;
+      } else {
+        geminiHistory.push({ role, parts: [{ text }] });
+      }
+    }
+
+    // Gemini history MUST start with 'user'
+    if (geminiHistory.length > 0 && geminiHistory[0].role !== 'user') {
+      geminiHistory.shift();
+    }
 
     const result = await model.generateContent({ contents: geminiHistory });
     const aiReply = result.response.text().trim();
