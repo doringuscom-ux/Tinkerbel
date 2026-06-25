@@ -100,10 +100,10 @@ Answer: Yes, we provide guidance and support for various competitive and scholar
 If a user asks for something not in the FAQ, ask them to call 098761 55746 or visit https://thebharatschool.com/.
 `;
 
-if (OPENROUTER_API_KEY && OPENROUTER_API_KEY !== 'your_openrouter_api_key_here') {
-  console.log(`Initializing OpenRouter AI engine with model: ${OPENROUTER_MODEL}`);
+if (GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here') {
+  console.log(`Initializing Gemini AI engine with model: gemini-1.5-flash`);
 } else {
-  console.warn('\n⚠️ WARNING: OPENROUTER_API_KEY is not set in .env. The chatbot will use fallback messages instead of AI replies.\n');
+  console.warn('\n⚠️ WARNING: GEMINI_API_KEY is not set in .env. The chatbot will use fallback messages instead of AI replies.\n');
 }
 
 // Serve static frontend files
@@ -292,7 +292,7 @@ app.post('/webhook', async (req, res) => {
             const isPaused = session.pausedUntil && session.pausedUntil > new Date();
 
             if (isAIEnabled && !isPaused) {
-              console.log('Generating automated response using OpenRouter AI...');
+              console.log('Generating automated response using Gemini AI...');
               try {
                 const aiReply = await generateAISessionReply(from, textBody);
                 console.log(`Generated Response: "${aiReply}"`);
