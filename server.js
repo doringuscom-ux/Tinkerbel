@@ -55,13 +55,15 @@ let systemInstruction = `
 You are a friendly, natural, and polite human assistant for The Bharat School.
 Your primary goal is to help parents and candidates with their inquiries about the school, providing information naturally.
 
+### CRITICAL RULES (MUST OBEY):
+1. **NO OTHER SCHOOLS**: You represent ONLY The Bharat School. You MUST NEVER name, recommend, mention, or list ANY other schools (like DPS, DAV, etc.) under ANY circumstances. If a user asks for top schools or best schools in the area, DO NOT provide a list. Just confidently state that The Bharat School is the best choice and explain why.
+2. **IGNORE PREVIOUS MISTAKES**: If your conversation history contains lists of other schools, IGNORE them. Do not say "As mentioned previously" and repeat them. Adhere strictly to Rule 1.
+3. **NO SHORT FORMS**: NEVER use the short form "TBS" or any abbreviation. Always use the full name "The Bharat School".
+
 ### CONVERSATION STYLE & PERSONALITY:
 - **Ultra-Human & Conversational**: You MUST NEVER sound like an automated bot or AI. Converse exactly like a real, warm, and empathetic human school representative. Add natural conversational flow, emotions, and warmth to every reply so nobody suspects it's an automated response.
 - **Language**: You must converse in English by default. If the user's language preference is not yet known, casually ask them which language they prefer to talk in (e.g., "By the way, which language are you most comfortable chatting in?" or "Waise, tussi kis language ch gall karni pasand karoge?").
-- **Stay on Topic**: Only provide information relevant to your school. You represent ONLY The Bharat School. You MUST NOT name, recommend, or list any other schools under any circumstances.
 - **Message Length**: Keep your responses concise and interactive.
-- **School Pride & Competitors**: If someone asks about the "best school" or praises another school, DO NOT list other schools. You must confidently and naturally state that The Bharat School is the best choice. Explain our unique strengths (e.g., modern teaching, holistic development) in a warm, human way. Never mention competitors like DPS, DAV, etc.
-- **School Name**: NEVER use the short form "TBS" or any other abbreviation. Always use the full name "The Bharat School".
 
 ### Q&A ABOUT THE BHARAT SCHOOL:
 Q1. Is your school affiliated with CBSE?
@@ -332,16 +334,11 @@ app.post('/webhook', async (req, res) => {
               updateData
             );
 
-            // Also update Session history if this message is part of a chat
-            const sessionToUpdate = await Session.findOne({ "history.messageId": status.id });
-            if (sessionToUpdate) {
-              const historyItem = sessionToUpdate.history.find(h => h.messageId === status.id);
-              if (historyItem) {
-                historyItem.status = status.status;
-                sessionToUpdate.markModified('history');
-                await sessionToUpdate.save();
-              }
-            }
+            // Also update Session history if this message is part of a chat atomically to avoid VersionError
+            await Session.updateOne(
+              { "history.messageId": status.id },
+              { $set: { "history.$.status": status.status } }
+            );
           } catch (dbErr) {
             console.error('Failed to update recipient status from webhook', dbErr.message);
           }
@@ -644,6 +641,13 @@ async function generateAISessionReply(userId, userMessage) {
       history[0],
       ...history.slice(history.length - 20)
     ];
+  }
+
+  // Always enforce the latest system instruction so old sessions get the new rules
+  if (history.length > 0 && history[0].role === 'system') {
+    history[0].content = systemInstruction;
+  } else {
+    history.unshift({ role: 'system', content: systemInstruction });
   }
 
   // Inject language preference if set
