@@ -242,6 +242,20 @@ app.post('/webhook', async (req, res) => {
               session.history = [{ role: 'system', content: systemInstruction }];
             }
 
+            // Handle keywords for Menu or Language Change
+            if (messageType === 'text') {
+              const lowerText = textBody.toLowerCase().trim();
+              if (['menu', 'language', 'change language', 'bhasha', 'options'].includes(lowerText)) {
+                console.log(`User ${from} requested menu/language change.`);
+                try {
+                  await sendWelcomeMenu(from);
+                } catch (err) {
+                  console.error('Error sending welcome menu:', err.message);
+                }
+                return res.status(200).send('EVENT_RECEIVED');
+              }
+            }
+
             // Handle Welcome Menu Reply
             if (messageType === 'interactive' && interactiveId) {
               if (interactiveId.startsWith('lang_')) {
@@ -449,6 +463,73 @@ app.post('/api/sessions/name', async (req, res) => {
     await session.save();
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 2.6 Delete chat history
+app.delete('/api/chats/:phone', async (req, res) => {
+  try {
+    await connectDB();
+    const { phone } = req.params;
+    if (!phone) return res.status(400).json({ error: 'Missing phone number' });
+
+    await Session.deleteOne({ phone });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 2.7 Delete single message
+app.delete('/api/chats/:phone/messages/:index', async (req, res) => {
+  try {
+    await connectDB();
+    const { phone, index } = req.params;
+    let session = await Session.findOne({ phone });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const msgIndex = parseInt(index, 10);
+    if (msgIndex >= 0 && msgIndex < session.history.length) {
+      session.history.splice(msgIndex, 1);
+      session.markModified('history');
+      await session.save();
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 2.8 Bulk delete messages
+app.post('/api/chats/:phone/messages/bulk-delete', async (req, res) => {
+  try {
+    await connectDB();
+    const { phone } = req.params;
+    const { indices } = req.body;
+    
+    if (!indices || !Array.isArray(indices)) {
+      return res.status(400).json({ error: 'Invalid indices array' });
+    }
+
+    let session = await Session.findOne({ phone });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    // Sort indices descending to splice safely without shifting subsequent targets
+    const sortedIndices = indices.sort((a, b) => b - a);
+
+    for (let msgIndex of sortedIndices) {
+      if (msgIndex >= 0 && msgIndex < session.history.length) {
+        session.history.splice(msgIndex, 1);
+      }
+    }
+
+    session.markModified('history');
+    await session.save();
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error in bulk-delete:', err);
     res.status(500).json({ error: 'Database error' });
   }
 });

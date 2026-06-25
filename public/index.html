@@ -59,8 +59,23 @@
 
           <!-- Resume Button -->
           <button class="btn btn-resume" id="btnResume" style="display: none;">Resume AI</button>
+          
+          <!-- Delete Button -->
+          <button class="btn btn-delete" id="btnDeleteChat" style="display: none; background: #e74c3c; margin-left: 10px;">Delete Chat</button>
+
+          <!-- Select Mode Button -->
+          <button class="btn btn-select-mode" id="btnSelectMode" style="display: none; margin-left: 10px; background: #58a6ff; color: white;">Select Messages</button>
         </div>
       </header>
+
+      <!-- Selection Action Bar -->
+      <div class="selection-action-bar" id="selectionActionBar" style="display: none;">
+        <span id="selectionCount">0 selected</span>
+        <div class="action-buttons">
+          <button class="btn btn-cancel-selection" id="btnCancelSelection">Cancel</button>
+          <button class="btn btn-delete-selected" id="btnDeleteSelected">Delete Selected</button>
+        </div>
+      </div>
 
       <!-- Message History Container -->
       <section class="messages-container" id="messagesContainer">

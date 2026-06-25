@@ -3,6 +3,8 @@ let activePhone = null;
 let sessionsData = [];
 let pollingInterval = null;
 let countdownInterval = null;
+let isSelectionMode = false;
+let selectedMessages = new Set();
 
 // DOM Elements
 const sessionsList = document.getElementById('sessionsList');
@@ -16,6 +18,12 @@ const btnResume = document.getElementById('btnResume');
 const chatInputArea = document.getElementById('chatInputArea');
 const messageForm = document.getElementById('messageForm');
 const messageInput = document.getElementById('messageInput');
+const btnDeleteChat = document.getElementById('btnDeleteChat');
+const btnSelectMode = document.getElementById('btnSelectMode');
+const selectionActionBar = document.getElementById('selectionActionBar');
+const selectionCount = document.getElementById('selectionCount');
+const btnCancelSelection = document.getElementById('btnCancelSelection');
+const btnDeleteSelected = document.getElementById('btnDeleteSelected');
 
 // Initialize Dashboard
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,6 +42,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Resume Button Event
   btnResume.addEventListener('click', resumeAI);
+
+  // Delete Chat Button Event
+  btnDeleteChat.addEventListener('click', deleteChat);
+
+  // Selection Mode Events
+  btnSelectMode.addEventListener('click', toggleSelectionMode);
+  btnCancelSelection.addEventListener('click', cancelSelectionMode);
+  btnDeleteSelected.addEventListener('click', bulkDeleteSelectedMessages);
 
   // AI Toggle Change Event
   aiToggleCheckbox.addEventListener('change', (e) => {
@@ -147,10 +163,48 @@ function renderMessages(history) {
   }
 
   chatMessages.forEach(msg => {
-    const bubble = document.createElement('div');
-    // Align based on role
+    const originalIndex = history.indexOf(msg);
     const isUser = msg.role === 'user';
+    
+    const wrapper = document.createElement('div');
+    wrapper.className = `message-bubble-wrapper ${isUser ? 'is-user' : ''}`;
+    if (isSelectionMode) wrapper.classList.add('selection-mode');
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'msg-checkbox';
+    checkbox.checked = selectedMessages.has(originalIndex);
+    checkbox.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        selectedMessages.add(originalIndex);
+      } else {
+        selectedMessages.delete(originalIndex);
+      }
+      updateSelectionCount();
+    });
+    
+    // Add click event to bubble itself for easier selection
+    const bubble = document.createElement('div');
     bubble.className = `message-bubble ${isUser ? 'bubble-user' : 'bubble-assistant'}`;
+    bubble.onclick = (e) => {
+      if (isSelectionMode) {
+        // Prevent triggering if clicked on inner elements like single delete
+        if (e.target.classList.contains('btn-del-msg')) return;
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event('change'));
+      }
+    };
+    
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-del-msg';
+    delBtn.innerHTML = '✕';
+    delBtn.title = 'Delete message (for me)';
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      deleteSingleMessage(originalIndex);
+    };
+    bubble.appendChild(delBtn);
+
     const contentDiv = document.createElement('div');
     contentDiv.className = 'msg-content';
     contentDiv.innerText = msg.content;
@@ -164,7 +218,9 @@ function renderMessages(history) {
       bubble.appendChild(timeDiv);
     }
 
-    messagesContainer.appendChild(bubble);
+    wrapper.appendChild(checkbox);
+    wrapper.appendChild(bubble);
+    messagesContainer.appendChild(wrapper);
   });
 
   scrollToBottom();
@@ -203,6 +259,8 @@ function updateChatHeaderState() {
     aiToggleCheckbox.checked = true;
     btnResume.style.display = 'none';
   }
+  btnDeleteChat.style.display = 'inline-block';
+  btnSelectMode.style.display = 'inline-block';
 }
 
 // Start visual countdown for paused status
@@ -246,6 +304,102 @@ async function pauseAI(minutes) {
     }
   } catch (err) {
     console.error('Error pausing AI:', err);
+  }
+}
+
+// Delete chat history
+async function deleteChat() {
+  if (!activePhone) return;
+  const confirmDelete = confirm('Are you sure you want to delete this chat history? This action cannot be undone.');
+  if (!confirmDelete) return;
+
+  try {
+    const response = await fetch(`/api/chats/${activePhone}`, {
+      method: 'DELETE'
+    });
+    if (response.ok) {
+      activePhone = null;
+      chatHeader.style.display = 'none';
+      chatInputArea.style.display = 'none';
+      messagesContainer.innerHTML = '<div class="empty-state"><h3>Chat Deleted</h3><p>Select another chat from the sidebar.</p></div>';
+      fetchSessions();
+    } else {
+      alert('Failed to delete chat.');
+    }
+  } catch (err) {
+    console.error('Error deleting chat:', err);
+    alert('An error occurred while deleting the chat.');
+  }
+}
+
+// Delete single message
+async function deleteSingleMessage(index) {
+  if (!activePhone) return;
+  const confirmDelete = confirm('Delete this message?');
+  if (!confirmDelete) return;
+
+  try {
+    const response = await fetch(`/api/chats/${activePhone}/messages/${index}`, {
+      method: 'DELETE'
+    });
+    if (response.ok) {
+      fetchChatHistory(activePhone);
+    } else {
+      alert('Failed to delete message.');
+    }
+  } catch (err) {
+    console.error('Error deleting message:', err);
+    alert('An error occurred while deleting the message.');
+  }
+}
+
+// --- Selection Mode Functions ---
+
+function toggleSelectionMode() {
+  isSelectionMode = true;
+  selectedMessages.clear();
+  selectionActionBar.style.display = 'flex';
+  btnSelectMode.style.display = 'none';
+  updateSelectionCount();
+  fetchChatHistory(activePhone); // Re-render to show checkboxes
+}
+
+function cancelSelectionMode() {
+  isSelectionMode = false;
+  selectedMessages.clear();
+  selectionActionBar.style.display = 'none';
+  btnSelectMode.style.display = 'inline-block';
+  fetchChatHistory(activePhone); // Re-render to hide checkboxes
+}
+
+function updateSelectionCount() {
+  const count = selectedMessages.size;
+  selectionCount.innerText = `${count} selected`;
+  btnDeleteSelected.disabled = count === 0;
+}
+
+async function bulkDeleteSelectedMessages() {
+  if (selectedMessages.size === 0) return;
+  const confirmDelete = confirm(`Delete ${selectedMessages.size} selected messages?`);
+  if (!confirmDelete) return;
+
+  const indicesArray = Array.from(selectedMessages);
+  
+  try {
+    const response = await fetch(`/api/chats/${activePhone}/messages/bulk-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ indices: indicesArray })
+    });
+    
+    if (response.ok) {
+      cancelSelectionMode();
+    } else {
+      alert('Failed to delete messages.');
+    }
+  } catch (err) {
+    console.error('Error bulk deleting messages:', err);
+    alert('An error occurred while deleting messages.');
   }
 }
 

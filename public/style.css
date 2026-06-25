@@ -411,12 +411,36 @@ input:checked + .slider:before {
 
 /* Chat Bubbles */
 .message-bubble {
+  position: relative;
   max-width: 65%;
   padding: 12px 16px;
   border-radius: 16px;
   font-size: 0.95rem;
   line-height: 1.45;
   word-wrap: break-word;
+}
+
+.message-bubble:hover .btn-del-msg {
+  display: block;
+}
+
+.btn-del-msg {
+  display: none;
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  z-index: 10;
 }
 
 .bubble-user {
@@ -541,4 +565,76 @@ input:checked + .slider:before {
   0% { transform: translateY(0px); }
   50% { transform: translateY(-10px); }
   100% { transform: translateY(0px); }
+}
+
+/* Selection Mode UI */
+.selection-action-bar {
+  background: rgba(30, 41, 59, 0.95);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(10px);
+}
+
+.selection-action-bar span {
+  color: white;
+  font-weight: 600;
+}
+
+.selection-action-bar .action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-cancel-selection {
+  background: transparent;
+  color: #c9d1d9;
+  border: 1px solid #c9d1d9;
+}
+
+.btn-delete-selected {
+  background: #e74c3c;
+  color: white;
+  border: none;
+}
+
+.btn-delete-selected:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.msg-checkbox {
+  display: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 12px;
+  cursor: pointer;
+  accent-color: var(--accent-blue);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.message-bubble-wrapper {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.message-bubble-wrapper.selection-mode .msg-checkbox {
+  display: block;
+}
+
+.message-bubble-wrapper.selection-mode .btn-del-msg {
+  display: none !important; /* Hide single delete in selection mode */
+}
+
+.message-bubble-wrapper.is-user {
+  flex-direction: row-reverse;
+}
+
+.message-bubble-wrapper.is-user .msg-checkbox {
+  margin-right: 0;
+  margin-left: 12px;
 }
