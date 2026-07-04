@@ -812,13 +812,7 @@ async function generateAISessionReply(userId, userMessage) {
 
   try {
     const url = 'https://openrouter.ai/api/v1/chat/completions';
-    const payload = {
-      model: OPENROUTER_MODEL,
-      messages: history.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }))
-    };
+    const messages = history.map(msg => ({ role: msg.role, content: msg.content }));
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
@@ -826,7 +820,15 @@ async function generateAISessionReply(userId, userMessage) {
       'X-Title': 'The Bharat School WhatsApp Bot'
     };
 
-    const response = await axios.post(url, payload, { headers, timeout: 8000 });
+    const payload1 = { model: OPENROUTER_MODEL, messages };
+    // Second model defaults to gemma-7b-it for faster response if not provided in env
+    const payload2 = { model: process.env.OPENROUTER_MODEL_2 || 'google/gemma-7b-it:free', messages };
+
+    const req1 = axios.post(url, payload1, { headers, timeout: 30000 });
+    const req2 = axios.post(url, payload2, { headers, timeout: 30000 });
+
+    // Race both API calls and get the fastest response
+    const response = await Promise.any([req1, req2]);
 
     if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
       const aiReply = response.data.choices[0].message.content.trim();
