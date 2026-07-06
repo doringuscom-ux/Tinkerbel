@@ -197,9 +197,6 @@ app.post('/webhook', async (req, res) => {
   console.log('Incoming Webhook Event:', JSON.stringify(req.body, null, 2));
 
   if (req.body.object === 'whatsapp_business_account') {
-    // Acknowledge webhook immediately to prevent Meta from retrying
-    res.status(200).send('EVENT_RECEIVED');
-
     try {
       await connectDB();
       const entry = req.body.entry;
@@ -226,7 +223,7 @@ app.post('/webhook', async (req, res) => {
             }
 
             if (!textBody) {
-              return;
+              return res.status(200).send('EVENT_RECEIVED');
             }
 
             console.log(`Message content: "${textBody}"`);
@@ -249,7 +246,7 @@ app.post('/webhook', async (req, res) => {
             const isDuplicate = session.history.some(msg => msg.messageId === messageId);
             if (isDuplicate) {
               console.log(`Ignoring duplicate message ID: ${messageId}`);
-              return;
+              return res.status(200).send('EVENT_RECEIVED');
             }
 
             // Handle keywords for Menu or Language Change
@@ -262,7 +259,7 @@ app.post('/webhook', async (req, res) => {
                 } catch (err) {
                   console.error('Error sending language menu:', err.message);
                 }
-                return;
+                return res.status(200).send('EVENT_RECEIVED');
               }
             }
 
@@ -292,7 +289,7 @@ app.post('/webhook', async (req, res) => {
                 } catch (err) {
                   console.error('Error sending inquiry menu:', err.message);
                 }
-                return; // Stop here so AI doesn't reply to language selection
+                return res.status(200).send('EVENT_RECEIVED'); // Stop here so AI doesn't reply to language selection
               } else if (interactiveId.startsWith('opt_')) {
                 if (!session.language) session.language = 'English'; // fallback flag
                 await session.save();
@@ -339,7 +336,7 @@ app.post('/webhook', async (req, res) => {
               } catch (err) {
                 console.error('Error sending language menu:', err.message);
               }
-              return; // Wait for next user message
+              return res.status(200).send('EVENT_RECEIVED'); // Wait for next user message
             }
             // ------------------------------------
 
@@ -399,8 +396,11 @@ app.post('/webhook', async (req, res) => {
           }
         }
       }
+
+      res.status(200).send('EVENT_RECEIVED');
     } catch (error) {
       console.error('Error handling webhook event:', error.message);
+      res.status(500).send('ERROR');
     }
   } else {
     res.sendStatus(404);
