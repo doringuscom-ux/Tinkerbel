@@ -320,9 +320,18 @@ app.post('/webhook', async (req, res) => {
               console.error('Failed to send push notification:', pushErr.message);
             }
 
+            const HOURS_24 = 24 * 60 * 60 * 1000;
+            let timeSinceLastMsg = 0;
+            if (session.history.length >= 2) {
+              const prevMsg = session.history[session.history.length - 2];
+              if (prevMsg.timestamp) {
+                timeSinceLastMsg = new Date().getTime() - new Date(prevMsg.timestamp).getTime();
+              }
+            }
+
             // --- WELCOME MENU INTERCEPT ---
-            if (!session.language || session.history.length === 2) {
-              console.log(`User ${from} has not seen welcome menu. Sending language menu.`);
+            if (!session.language) {
+              console.log(`User ${from} has not selected language. Sending language menu.`);
               try {
                 await sendLanguageMenu(from);
                 session.history.push({
@@ -337,6 +346,22 @@ app.post('/webhook', async (req, res) => {
                 console.error('Error sending language menu:', err.message);
               }
               return res.status(200).send('EVENT_RECEIVED'); // Wait for next user message
+            } else if (session.history.length === 2 || timeSinceLastMsg > HOURS_24) {
+              console.log(`User ${from} is starting a new session. Sending inquiry menu.`);
+              try {
+                await sendInquiryMenu(from);
+                session.history.push({
+                  role: 'assistant',
+                  content: "[Interactive Menu Sent: Inquiry Options]",
+                  timestamp: new Date().toISOString(),
+                  status: 'sent'
+                });
+                session.markModified('history');
+                await session.save();
+              } catch (err) {
+                console.error('Error sending inquiry menu:', err.message);
+              }
+              return res.status(200).send('EVENT_RECEIVED'); // Wait for user to select an option
             }
             // ------------------------------------
 
