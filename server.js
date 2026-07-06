@@ -197,6 +197,9 @@ app.post('/webhook', async (req, res) => {
   console.log('Incoming Webhook Event:', JSON.stringify(req.body, null, 2));
 
   if (req.body.object === 'whatsapp_business_account') {
+    // Acknowledge webhook immediately to prevent Meta from retrying
+    res.status(200).send('EVENT_RECEIVED');
+
     try {
       await connectDB();
       const entry = req.body.entry;
@@ -223,7 +226,7 @@ app.post('/webhook', async (req, res) => {
             }
 
             if (!textBody) {
-              return res.status(200).send('EVENT_RECEIVED');
+              return;
             }
 
             console.log(`Message content: "${textBody}"`);
@@ -242,6 +245,13 @@ app.post('/webhook', async (req, res) => {
               session.history = [{ role: 'system', content: systemInstruction }];
             }
 
+            // Deduplication check to ensure we don't process the same message twice
+            const isDuplicate = session.history.some(msg => msg.messageId === messageId);
+            if (isDuplicate) {
+              console.log(`Ignoring duplicate message ID: ${messageId}`);
+              return;
+            }
+
             // Handle keywords for Menu or Language Change
             if (messageType === 'text') {
               const lowerText = textBody.toLowerCase().trim();
@@ -252,7 +262,7 @@ app.post('/webhook', async (req, res) => {
                 } catch (err) {
                   console.error('Error sending language menu:', err.message);
                 }
-                return res.status(200).send('EVENT_RECEIVED');
+                return;
               }
             }
 
@@ -262,7 +272,7 @@ app.post('/webhook', async (req, res) => {
                 const selectedLanguage = interactiveId.split('_')[1];
                 session.language = selectedLanguage;
                 
-                session.history.push({ role: 'user', content: textBody, timestamp: new Date().toISOString() });
+                session.history.push({ role: 'user', content: textBody, timestamp: new Date().toISOString(), messageId: messageId });
                 session.unreadCount = (session.unreadCount || 0) + 1;
                 session.markModified('history');
                 await session.save();
@@ -282,7 +292,7 @@ app.post('/webhook', async (req, res) => {
                 } catch (err) {
                   console.error('Error sending inquiry menu:', err.message);
                 }
-                return res.status(200).send('EVENT_RECEIVED'); // Stop here so AI doesn't reply to language selection
+                return; // Stop here so AI doesn't reply to language selection
               } else if (interactiveId.startsWith('opt_')) {
                 if (!session.language) session.language = 'English'; // fallback flag
                 await session.save();
@@ -290,7 +300,7 @@ app.post('/webhook', async (req, res) => {
               }
             }
 
-            session.history.push({ role: 'user', content: textBody, timestamp: new Date().toISOString() });
+            session.history.push({ role: 'user', content: textBody, timestamp: new Date().toISOString(), messageId: messageId });
             session.unreadCount = (session.unreadCount || 0) + 1;
             session.markModified('history');
             await session.save();
@@ -329,7 +339,7 @@ app.post('/webhook', async (req, res) => {
               } catch (err) {
                 console.error('Error sending language menu:', err.message);
               }
-              return res.status(200).send('EVENT_RECEIVED'); // Wait for next user message
+              return; // Wait for next user message
             }
             // ------------------------------------
 
@@ -389,11 +399,8 @@ app.post('/webhook', async (req, res) => {
           }
         }
       }
-
-      res.status(200).send('EVENT_RECEIVED');
     } catch (error) {
       console.error('Error handling webhook event:', error.message);
-      res.status(500).send('ERROR');
     }
   } else {
     res.sendStatus(404);
