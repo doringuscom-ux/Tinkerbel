@@ -821,8 +821,8 @@ async function generateAISessionReply(userId, userMessage) {
     };
 
     const payload1 = { model: OPENROUTER_MODEL, messages };
-    // Second model defaults to gemma-7b-it for faster response if not provided in env
-    const payload2 = { model: process.env.OPENROUTER_MODEL_2 || 'google/gemma-7b-it:free', messages };
+    // Second model defaults to gemma-4-26b-a4b-it:free for faster response if not provided in env
+    const payload2 = { model: process.env.OPENROUTER_MODEL_2 || 'google/gemma-4-26b-a4b-it:free', messages };
 
     const req1 = axios.post(url, payload1, { headers, timeout: 30000 });
     const req2 = axios.post(url, payload2, { headers, timeout: 30000 });
