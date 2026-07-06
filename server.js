@@ -840,10 +840,6 @@ async function generateAISessionReply(userId, userMessage) {
     if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
       const aiReply = response.data.choices[0].message.content.trim();
 
-      session.history.push({ role: 'assistant', content: aiReply, timestamp: new Date().toISOString() });
-      session.markModified('history');
-      await session.save();
-
       return aiReply;
     } else {
       console.error('Unexpected OpenRouter response structure:', JSON.stringify(response.data));
