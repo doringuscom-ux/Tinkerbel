@@ -387,7 +387,7 @@ app.post('/webhook', async (req, res) => {
                 let metaMsgId = null;
                 if (response.messages && response.messages.length > 0) metaMsgId = response.messages[0].id;
 
-                if (aiReply !== "Thank you for your message! Our AI is taking a moment to process. Please leave your requirement details and a team member will reach out to you shortly." && aiReply !== "Thank you for your message. We will get back to you shortly!") {
+                if (aiReply !== "Thank you for contacting Tinkerbelle School! For immediate assistance, please call us at 098761 55746 or visit our website at https://tinkerbelle.com. Our admission team will also reach out to you shortly!") {
                   session.history.push({
                     role: 'assistant',
                     content: aiReply,
@@ -819,14 +819,16 @@ async function sendInquiryMenu(to) {
  * Helper function to generate response using Gemini AI with session memory
  */
 async function generateAISessionReply(userId, userMessage) {
+  const fallbackMessage = "Thank you for contacting Tinkerbelle School! For immediate assistance, please call us at 098761 55746 or visit our website at https://tinkerbelle.com. Our admission team will also reach out to you shortly!";
+
   if (!process.env.GEMINI_API_KEY) {
     console.log('GEMINI_API_KEY not configured. Using fallback response.');
-    return "Thank you for contacting Tinkerbelle. Our AI Assistant is undergoing setup. Please leave your requirement details and a team member will reach out to you shortly!";
+    return fallbackMessage;
   }
 
   const session = await Session.findOne({ phone: userId });
   if (!session || !session.history) {
-    return "Thank you for your message. We will get back to you shortly!";
+    return fallbackMessage;
   }
 
   // Clean up history to ensure strictly alternating roles
@@ -887,7 +889,7 @@ async function generateAISessionReply(userId, userMessage) {
     return result.response.text().trim();
   } catch (error) {
     console.error(`Error calling Gemini API for session ${userId}:`, error.message || error);
-    return "Thank you for your message! Our AI is taking a moment to process. Please leave your requirement details and a team member will reach out to you shortly.";
+    return fallbackMessage;
   }
 }
 
