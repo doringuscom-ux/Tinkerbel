@@ -386,15 +386,17 @@ app.post('/webhook', async (req, res) => {
                 let metaMsgId = null;
                 if (response.messages && response.messages.length > 0) metaMsgId = response.messages[0].id;
 
-                session.history.push({
-                  role: 'assistant',
-                  content: aiReply,
-                  timestamp: new Date().toISOString(),
-                  messageId: metaMsgId,
-                  status: 'sent'
-                });
-                session.markModified('history');
-                await session.save();
+                if (aiReply !== "Thank you for your message! Our AI is taking a moment to process. Please leave your requirement details and a team member will reach out to you shortly." && aiReply !== "Thank you for your message. We will get back to you shortly!") {
+                  session.history.push({
+                    role: 'assistant',
+                    content: aiReply,
+                    timestamp: new Date().toISOString(),
+                    messageId: metaMsgId,
+                    status: 'sent'
+                  });
+                  session.markModified('history');
+                  await session.save();
+                }
                 console.log(`Auto-reply sent successfully to: ${from}`);
               } catch (sendError) {
                 console.error('Error sending AI response:', sendError.message);
@@ -826,8 +828,23 @@ async function generateAISessionReply(userId, userMessage) {
     return "Thank you for your message. We will get back to you shortly!";
   }
 
+  // Clean up history to ensure strictly alternating roles (required by many models like Gemma/Gemini)
+  let cleanHistory = [];
+  for (let msg of session.history) {
+    if (cleanHistory.length === 0) {
+      cleanHistory.push({ role: msg.role, content: msg.content });
+    } else {
+      let lastMsg = cleanHistory[cleanHistory.length - 1];
+      if (lastMsg.role === msg.role && msg.role !== 'system') {
+        lastMsg.content += '\n\n' + msg.content;
+      } else {
+        cleanHistory.push({ role: msg.role, content: msg.content });
+      }
+    }
+  }
+
   // Keep last 20 messages + system instruction to avoid token limits
-  let history = session.history;
+  let history = cleanHistory;
   if (history.length > 21) {
     history = [
       history[0],
