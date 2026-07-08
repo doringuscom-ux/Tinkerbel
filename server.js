@@ -7,6 +7,7 @@ const path = require('path');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const multer = require('multer');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const cloudinary = require('cloudinary').v2;
 
 cloudinary.config({
@@ -818,8 +819,8 @@ async function sendInquiryMenu(to) {
  * Helper function to generate response using Gemini AI with session memory
  */
 async function generateAISessionReply(userId, userMessage) {
-  if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY === 'your_openrouter_api_key_here') {
-    console.log('OpenRouter key not configured. Using fallback response.');
+  if (!process.env.GEMINI_API_KEY) {
+    console.log('GEMINI_API_KEY not configured. Using fallback response.');
     return "Thank you for contacting Tinkerbelle. Our AI Assistant is undergoing setup. Please leave your requirement details and a team member will reach out to you shortly!";
   }
 
@@ -828,7 +829,7 @@ async function generateAISessionReply(userId, userMessage) {
     return "Thank you for your message. We will get back to you shortly!";
   }
 
-  // Clean up history to ensure strictly alternating roles (required by many models like Gemma/Gemini)
+  // Clean up history to ensure strictly alternating roles
   let cleanHistory = [];
   for (let msg of session.history) {
     if (cleanHistory.length === 0) {
@@ -861,7 +862,6 @@ async function generateAISessionReply(userId, userMessage) {
 
   // Inject language preference if set
   if (session.language) {
-    // We append it to the main system instruction
     history[0] = {
       role: 'system',
       content: history[0].content + `\n\nCRITICAL INSTRUCTION: You must reply in the user's preferred language, which is: ${session.language}. Do not use any other language.`
@@ -869,35 +869,24 @@ async function generateAISessionReply(userId, userMessage) {
   }
 
   try {
-    const url = 'https://openrouter.ai/api/v1/chat/completions';
-    const messages = history.map(msg => ({ role: msg.role, content: msg.content }));
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'HTTP-Referer': 'https://tinkerbelle.com',
-      'X-Title': 'Tinkerbelle WhatsApp Bot'
-    };
-
-    const payload1 = { model: OPENROUTER_MODEL, messages };
-    // Second model defaults to gemma-4-26b-a4b-it:free for faster response if not provided in env
-    const payload2 = { model: process.env.OPENROUTER_MODEL_2 || 'google/gemma-4-26b-a4b-it:free', messages };
-
-    const req1 = axios.post(url, payload1, { headers, timeout: 30000 });
-    const req2 = axios.post(url, payload2, { headers, timeout: 30000 });
-
-    // Race both API calls and get the fastest response
-    const response = await Promise.any([req1, req2]);
-
-    if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
-      const aiReply = response.data.choices[0].message.content.trim();
-
-      return aiReply;
-    } else {
-      console.error('Unexpected OpenRouter response structure:', JSON.stringify(response.data));
-      return "Thank you for your message. We will get back to you shortly!";
-    }
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      systemInstruction: history[0].content,
+    });
+    
+    // Map history to Gemini format (skip system instruction as it's passed above)
+    const contents = history
+      .filter(msg => msg.role !== 'system')
+      .map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      }));
+      
+    const result = await model.generateContent({ contents });
+    return result.response.text().trim();
   } catch (error) {
-    console.error(`Error calling OpenRouter API for session ${userId}:`, error.response ? error.response.data : error.message);
+    console.error(`Error calling Gemini API for session ${userId}:`, error.message || error);
     return "Thank you for your message! Our AI is taking a moment to process. Please leave your requirement details and a team member will reach out to you shortly.";
   }
 }
