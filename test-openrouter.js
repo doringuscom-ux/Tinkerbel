@@ -11,8 +11,8 @@ async function testOpenRouter() {
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-    'HTTP-Referer': 'https://thebharatschool.com',
-    'X-Title': 'The Bharat School WhatsApp Bot'
+    'HTTP-Referer': 'https://tinkerbelle.com',
+    'X-Title': 'Tinkerbelle WhatsApp Bot'
   };
 
   const payload1 = { model: OPENROUTER_MODEL, messages };
