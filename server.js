@@ -821,33 +821,13 @@ async function sendInquiryMenu(to) {
 async function generateAISessionReply(userId, userMessage) {
   const fallbackMessage = "Thank you for contacting Tinkerbelle School! For immediate assistance, please call us at 098761 55746 or visit our website at https://tinkerbelle.com. Our admission team will also reach out to you shortly!";
 
-  if (!process.env.GEMINI_API_KEY) {
-    console.log('GEMINI_API_KEY not configured. Using fallback response.');
-    return fallbackMessage;
-  }
-
   const session = await Session.findOne({ phone: userId });
   if (!session || !session.history) {
     return fallbackMessage;
   }
 
-  // Clean up history to ensure strictly alternating roles
-  let cleanHistory = [];
-  for (let msg of session.history) {
-    if (cleanHistory.length === 0) {
-      cleanHistory.push({ role: msg.role, content: msg.content });
-    } else {
-      let lastMsg = cleanHistory[cleanHistory.length - 1];
-      if (lastMsg.role === msg.role && msg.role !== 'system') {
-        lastMsg.content += '\n\n' + msg.content;
-      } else {
-        cleanHistory.push({ role: msg.role, content: msg.content });
-      }
-    }
-  }
-
   // Keep last 20 messages + system instruction to avoid token limits
-  let history = cleanHistory;
+  let history = session.history;
   if (history.length > 21) {
     history = [
       history[0],
@@ -870,56 +850,75 @@ async function generateAISessionReply(userId, userMessage) {
     };
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: history[0].content,
-    });
-    
-    // Map history to Gemini format (skip system instruction as it's passed above)
-    const contents = history
-      .filter(msg => msg.role !== 'system')
-      .map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
+  // FIRST OPTION: OpenRouter
+  if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== 'your_openrouter_api_key_here') {
+    try {
+      const url = 'https://openrouter.ai/api/v1/chat/completions';
+      const messages = history.map(msg => ({ 
+        role: msg.role === 'assistant' ? 'assistant' : (msg.role === 'system' ? 'system' : 'user'), 
+        content: msg.content 
       }));
-      
-    const result = await model.generateContent({ contents });
-    return result.response.text().trim();
-    } catch (geminiError) {
-      console.error(`Error calling Gemini API for session ${userId}:`, geminiError.message || geminiError);
-      
-      // Fallback to OpenRouter
-      if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== 'your_openrouter_api_key_here') {
-        console.log(`Gemini failed, falling back to OpenRouter API...`);
-        try {
-          const openRouterModel = process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free';
-          const orMessages = history.map(msg => ({
-            role: msg.role === 'assistant' ? 'assistant' : (msg.role === 'system' ? 'system' : 'user'),
-            content: msg.content
-          }));
-          
-          const orResponse = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: openRouterModel,
-            messages: orMessages
-          }, {
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json"
-            }
-          });
-          
-          return orResponse.data.choices[0].message.content.trim();
-        } catch (orError) {
-          console.error(`Error calling OpenRouter API for session ${userId}:`, orError.response ? orError.response.data : orError.message);
-          return fallbackMessage;
-        }
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://tinkerbelle.com',
+        'X-Title': 'Tinkerbelle WhatsApp Bot'
+      };
+
+      const payload1 = { model: process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free', messages };
+      const payload2 = { model: process.env.OPENROUTER_MODEL_2 || 'google/gemma-4-26b-a4b-it:free', messages };
+
+      const req1 = axios.post(url, payload1, { headers, timeout: 30000 });
+      const req2 = axios.post(url, payload2, { headers, timeout: 30000 });
+
+      const response = await Promise.any([req1, req2]);
+
+      if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
+        return response.data.choices[0].message.content.trim();
       }
-      
-      return fallbackMessage;
+    } catch (orError) {
+      console.error(`Error calling OpenRouter API for session ${userId}:`, orError.message || orError);
+      console.log(`OpenRouter failed, falling back to Gemini API...`);
     }
   }
+
+  // FALLBACK: Google Gemini
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        systemInstruction: history[0].content,
+      });
+      
+      // Map history to Gemini format (skip system instruction as it's passed above)
+      // Gemini strictly requires alternating roles, so we group consecutive messages
+      let geminiHistory = [];
+      const nonSystemMsg = history.filter(msg => msg.role !== 'system');
+      for (let msg of nonSystemMsg) {
+        const mappedRole = msg.role === 'assistant' ? 'model' : 'user';
+        if (geminiHistory.length === 0) {
+          geminiHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
+        } else {
+          let lastMsg = geminiHistory[geminiHistory.length - 1];
+          if (lastMsg.role === mappedRole) {
+            lastMsg.parts[0].text += '\n\n' + msg.content;
+          } else {
+            geminiHistory.push({ role: mappedRole, parts: [{ text: msg.content }] });
+          }
+        }
+      }
+        
+      const contents = geminiHistory;
+      const result = await model.generateContent({ contents });
+      return result.response.text().trim();
+    } catch (geminiError) {
+      console.error(`Error calling Gemini API for session ${userId}:`, geminiError.message || geminiError);
+    }
+  }
+
+  return fallbackMessage;
+}
 
 // 6. Get all approved WhatsApp Message Templates
 app.get('/api/templates', async (req, res) => {
