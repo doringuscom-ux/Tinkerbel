@@ -1113,6 +1113,11 @@ app.get('/api/broadcasts/:jobId', async (req, res) => {
   }
 });
 
+// Heartbeat / Ping Route to keep Render awake
+app.get('/ping', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Server is awake and running!' });
+});
+
 /**
  * START SERVER
  */app.listen(PORT, async () => {
