@@ -887,11 +887,39 @@ async function generateAISessionReply(userId, userMessage) {
       
     const result = await model.generateContent({ contents });
     return result.response.text().trim();
-  } catch (error) {
-    console.error(`Error calling Gemini API for session ${userId}:`, error.message || error);
-    return fallbackMessage;
+    } catch (geminiError) {
+      console.error(`Error calling Gemini API for session ${userId}:`, geminiError.message || geminiError);
+      
+      // Fallback to OpenRouter
+      if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== 'your_openrouter_api_key_here') {
+        console.log(`Gemini failed, falling back to OpenRouter API...`);
+        try {
+          const openRouterModel = process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free';
+          const orMessages = history.map(msg => ({
+            role: msg.role === 'assistant' ? 'assistant' : (msg.role === 'system' ? 'system' : 'user'),
+            content: msg.content
+          }));
+          
+          const orResponse = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+            model: openRouterModel,
+            messages: orMessages
+          }, {
+            headers: {
+              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json"
+            }
+          });
+          
+          return orResponse.data.choices[0].message.content.trim();
+        } catch (orError) {
+          console.error(`Error calling OpenRouter API for session ${userId}:`, orError.response ? orError.response.data : orError.message);
+          return fallbackMessage;
+        }
+      }
+      
+      return fallbackMessage;
+    }
   }
-}
 
 // 6. Get all approved WhatsApp Message Templates
 app.get('/api/templates', async (req, res) => {
